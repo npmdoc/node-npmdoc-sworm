@@ -1,0 +1,508 @@
+<div class="apidocDiv">
+<style>
+/*csslint
+*/
+.apidocDiv {
+    background: #fff;
+    font-family: Arial, Helvetica, sans-serif;
+}
+.apidocDiv a[href] {
+    color: #33f;
+    font-weight: bold;
+    text-decoration: none;
+}
+.apidocDiv a[href]:hover {
+    text-decoration: underline;
+}
+.apidocCodeCommentSpan {
+    background: #bbf;
+    color: #000;
+    display: block;
+}
+.apidocCodeKeywordSpan {
+    color: #d00;
+    font-weight: bold;
+}
+.apidocCodePre {
+    background: #eef;
+    border: 1px solid;
+    color: #777;
+    padding: 5px;
+    white-space: pre-wrap;
+}
+.apidocFooterDiv {
+    margin-top: 20px;
+    text-align: center;
+}
+.apidocModuleLi {
+    margin-top: 10px;
+}
+.apidocSectionDiv {
+    border-top: 1px solid;
+    margin-top: 20px;
+}
+.apidocSignatureSpan {
+    color: #777;
+    font-weight: bold;
+}
+</style>
+<h1>api documentation for
+    <a
+
+        href="https://github.com/featurist/sworm"
+
+    >sworm (v3.6.0)</a>
+</h1>
+<h4>a lightweight write-only ORM for MSSQL, MySQL, PostgreSQL, Oracle, Sqlite 3</h4>
+<div class="apidocSectionDiv"><a
+    href="#apidoc.tableOfContents"
+    id="apidoc.tableOfContents"
+><h1>table of contents</h1></a><ol>
+
+    <li class="apidocModuleLi"><a href="#apidoc.module.sworm">module sworm</a><ol>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.sworm.db">
+            function <span class="apidocSignatureSpan">sworm.</span>db
+            <span class="apidocSignatureSpan">(config)</span>
+            </a>
+
+        </li>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.sworm.escape">
+            function <span class="apidocSignatureSpan">sworm.</span>escape
+            <span class="apidocSignatureSpan">(value)</span>
+            </a>
+
+        </li>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.sworm.unescape">
+            function <span class="apidocSignatureSpan">sworm.</span>unescape
+            <span class="apidocSignatureSpan">(value)</span>
+            </a>
+
+        </li>
+
+    </ol></li>
+
+    <li class="apidocModuleLi"><a href="#apidoc.module.sworm.unescape">module sworm.unescape</a><ol>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.sworm.unescape.unescape">
+            function <span class="apidocSignatureSpan">sworm.</span>unescape
+            <span class="apidocSignatureSpan">(value)</span>
+            </a>
+
+        </li>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.sworm.unescape.interpolate">
+            function <span class="apidocSignatureSpan">sworm.unescape.</span>interpolate
+            <span class="apidocSignatureSpan">(query, params)</span>
+            </a>
+
+        </li>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.sworm.unescape.isUnescape">
+            function <span class="apidocSignatureSpan">sworm.unescape.</span>isUnescape
+            <span class="apidocSignatureSpan">(value)</span>
+            </a>
+
+        </li>
+
+    </ol></li>
+
+</ol></div>
+
+<div class="apidocSectionDiv">
+<h1><a href="#apidoc.module.sworm" id="apidoc.module.sworm">module sworm</a></h1>
+
+
+    <h2>
+        <a href="#apidoc.element.sworm.db" id="apidoc.element.sworm.db">
+        function <span class="apidocSignatureSpan">sworm.</span>db
+        <span class="apidocSignatureSpan">(config)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">db = function (config) {
+  var db = {
+    log: config &#x26;&#x26; config.log,
+    config: config,
+
+    model: function(modelConfig) {
+      var proto = _.omit(modelConfig, isModelMeta);
+      proto._meta = _.extend({
+        id: &#x27;id&#x27;
+      }, _.pick(modelConfig, isModelMeta));
+
+      proto._meta.db = this;
+      var id = proto._meta.id;
+      proto._meta.compoundKey = id == false || id instanceof Array;
+
+      var modelPrototype = _.extend(Object.create(rowBase), proto);
+
+      function model(obj, options) {
+        var saved = typeof options == &#x27;object&#x27; &#x26;&#x26; options.hasOwnProperty(&#x27;saved&#x27;)? options.saved: false;
+        var modified = typeof options == &#x27;object&#x27; &#x26;&#x26; options.hasOwnProperty(&#x27;modified&#x27;)? options.modified: false;
+        var row = _.extend(Object.create(modelPrototype), obj);
+
+        if (saved) {
+          row.setSaved();
+          if (!modified) {
+            row.setNotChanged();
+          }
+        }
+
+        return row;
+      }
+
+      model.query = function() {
+        var self = this;
+        return db.query.apply(db, arguments).then(function (entities) {
+          return entities.map(function (e) {
+            return self(e, {saved: true});
+          });
+        });
+      };
+
+      return model;
+    },
+
+    query: function(_query, _params, _options) {
+      var self = this;
+      var queryParams = unescape.interpolate(_query, _params)
+      var query = queryParams.query
+      var params = queryParams.params
+      var options = _options || {}
+
+      return this.whenConnected(function () {
+        var command = options.insert
+          ? self.driver.insert(query, params, options)
+          : self.driver.query(query, params, options)
+
+        return command.then(function (results) {
+          self.logResults(query, params, results, options);
+          return results;
+        }, function (e) {
+          self.logError(query, params, e);
+          throw e;
+        });
+      });
+    },
+
+    statement: function(query, params, options) {
+      options = _.extend({statement: true}, options);
+      return this.query(query, params, options);
+    },
+
+    whenConnected: function(fn) {
+      if (this.runningBeginSession) {
+        return fn();
+      } else {
+        return this.connect().then(fn);
+      }
+    },
+
+    logError: function(query, params, error) {
+      debug(query, params, error);
+    },
+
+    logResults: function(query, params, results, options) {
+      if (typeof this.log == &#x27;function&#x27;) {
+        return this.log(query, params, results, options);
+      } else {
+        if (params) {
+          debug(query, params);
+        } else {
+          debug(query);
+        }
+
+        if (options.insert) {
+          return debugResults(&#x27;id = &#x27; + results.id);
+        } else if (options.statement) {
+          return debugResults(&#x27;rows affected = &#x27; + results.changes);
+        } else if (!options.statement &#x26;&#x26; results) {
+          return debugResults(results);
+        }
+      }
+    },
+
+    ensureConfigured: function() {
+      if (!this.config) {
+        throw new Error(&#x27;sworm has not been configured to a database, use db.connect(config) or sworm.db(config)&#x27;);
+      }
+    },
+
+    connected: false,
+
+    connect: function (config, fn) {
+      if (typeof config === &#x27;function&#x27;) {
+        fn = config;
+        config = undefined;
+      }
+      if (config) {
+        this.config = config;
+      }
+      if (typeof this.config == &#x27;string&#x27;) {
+        this.config = configFromUrl(this.config)
+      }
+
+      var self = this;
+
+      if (this.connection) {
+        return this.connection;
+      }
+
+      this.ensureConfigured();
+
+      debug(&#x27;connecting to&#x27;, redactConfig(this.config));
+
+      var driver = {
+          mssql: mssqlDriver,
+          pg: pgDriver,
+          mysql: mysqlDriver,
+          oracle: oracleDriver,
+          sqlite: sqliteDriver,
+          websql: websqlDriver
+      }[this.config.driver];
+
+      if (!driver) {
+          throw new Error(&#x22;no such driver: `&#x22; + this.config.driver + &#x22;&#x27;&#x22;);
+      }
+
+      this.driver = driver();
+
+      this.connection = this.driver.connect(this.config).then(function () {
+        debug(&#x27;connected to&#x27;, redact ...</pre></li>
+    <li>example usage<pre class="apidocCodePre">...
+      return debugResults(results);
+    }
+  }
+},
+
+ensureConfigured: function() {
+  if (!this.config) {
+    throw new Error(&#x27;sworm has not been configured to a database, use db.connect(config) or sworm.<span class="apidocCodeKeywordSpan
+">db</span>(config)&#x27;);
+  }
+},
+
+connected: false,
+
+connect: function (config, fn) {
+  if (typeof config === &#x27;function&#x27;) {
+...</pre></li>
+    </ul>
+
+
+
+    <h2>
+        <a href="#apidoc.element.sworm.escape" id="apidoc.element.sworm.escape">
+        function <span class="apidocSignatureSpan">sworm.</span>escape
+        <span class="apidocSignatureSpan">(value)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">escape = function (value) {
+  if (typeof value == &#x27;string&#x27;) {
+    return &#x22;&#x27;&#x22; + value.replace(/&#x27;/g, &#x22;&#x27;&#x27;&#x22;) + &#x22;&#x27;&#x22;
+  } else {
+    return value
+  }
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">...
+  4. each of those entities are saved
+  5. the array is assigned to the outer entity&#x27;s field
+
+# Unescaping
+
+It&#x27;s sometimes useful to pass in some real unescaped SQL, for this you can use `sworm.unescape()` for model values or query
+ parameters.
+
+Usual qualifiers apply here: when using this feature, make sure to protect your application from SQL injection by properly escaping
+ strings with `sworm.<span class="apidocCodeKeywordSpan">escape</span>()` or by being extra careful!
+
+For example, you can pass in an array of values for an `in (...)` statement:
+
+```js
+db.query(&#x27;select * from people where names in (@names)&#x27;, {names: sworm.unescape(&#x22;&#x27;bob&#x27;, &#x27;jane&#x27
+;&#x22;)})
+```
+...</pre></li>
+    </ul>
+
+
+
+    <h2>
+        <a href="#apidoc.element.sworm.unescape" id="apidoc.element.sworm.unescape">
+        function <span class="apidocSignatureSpan">sworm.</span>unescape
+        <span class="apidocSignatureSpan">(value)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">function unescape(value) {
+  return new Unescape(value)
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">...
+  2. the function is called, passing the outer entity as the first argument
+  3. the function returns an array of entities
+  4. each of those entities are saved
+  5. the array is assigned to the outer entity&#x27;s field
+
+# Unescaping
+
+It&#x27;s sometimes useful to pass in some real unescaped SQL, for this you can use `sworm.<span class="apidocCodeKeywordSpan">unescape
+</span>()` for model values or query parameters.
+
+Usual qualifiers apply here: when using this feature, make sure to protect your application from SQL injection by properly escaping
+ strings with `sworm.escape()` or by being extra careful!
+
+For example, you can pass in an array of values for an `in (...)` statement:
+
+```js
+db.query(&#x27;select * from people where names in (@names)&#x27;, {names: sworm.unescape(&#x22;&#x27;bob&#x27;, &#x27;jane&#x27
+;&#x22;)})
+...</pre></li>
+    </ul>
+
+
+</div>
+
+<div class="apidocSectionDiv">
+<h1><a href="#apidoc.module.sworm.unescape" id="apidoc.module.sworm.unescape">module sworm.unescape</a></h1>
+
+
+    <h2>
+        <a href="#apidoc.element.sworm.unescape.unescape" id="apidoc.element.sworm.unescape.unescape">
+        function <span class="apidocSignatureSpan">sworm.</span>unescape
+        <span class="apidocSignatureSpan">(value)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">function unescape(value) {
+  return new Unescape(value)
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">...
+  2. the function is called, passing the outer entity as the first argument
+  3. the function returns an array of entities
+  4. each of those entities are saved
+  5. the array is assigned to the outer entity&#x27;s field
+
+# Unescaping
+
+It&#x27;s sometimes useful to pass in some real unescaped SQL, for this you can use `sworm.<span class="apidocCodeKeywordSpan">unescape
+</span>()` for model values or query parameters.
+
+Usual qualifiers apply here: when using this feature, make sure to protect your application from SQL injection by properly escaping
+ strings with `sworm.escape()` or by being extra careful!
+
+For example, you can pass in an array of values for an `in (...)` statement:
+
+```js
+db.query(&#x27;select * from people where names in (@names)&#x27;, {names: sworm.unescape(&#x22;&#x27;bob&#x27;, &#x27;jane&#x27
+;&#x22;)})
+...</pre></li>
+    </ul>
+
+
+
+    <h2>
+        <a href="#apidoc.element.sworm.unescape.interpolate" id="apidoc.element.sworm.unescape.interpolate">
+        function <span class="apidocSignatureSpan">sworm.unescape.</span>interpolate
+        <span class="apidocSignatureSpan">(query, params)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">interpolate = function (query, params) {
+  var driverParams = _.omit(params, function (value) {
+    return unescape.isUnescape(value)
+  })
+
+  var interpolatedQuery = query.replace(paramRegex, function(_, name) {
+    if (params.hasOwnProperty(name)) {
+      var value = params[name]
+      if (unescape.isUnescape(value)) {
+        delete driverParams[name]
+        return value.value
+      } else {
+        return _
+      }
+    } else {
+      return _
+    }
+  })
+
+  return {
+    query: interpolatedQuery,
+    params: driverParams
+  }
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">...
+};
+
+return model;
+    },
+
+    query: function(_query, _params, _options) {
+var self = this;
+var queryParams = unescape.<span class="apidocCodeKeywordSpan">interpolate</span>(_query, _params)
+var query = queryParams.query
+var params = queryParams.params
+var options = _options || {}
+
+return this.whenConnected(function () {
+  var command = options.insert
+    ? self.driver.insert(query, params, options)
+...</pre></li>
+    </ul>
+
+
+
+    <h2>
+        <a href="#apidoc.element.sworm.unescape.isUnescape" id="apidoc.element.sworm.unescape.isUnescape">
+        function <span class="apidocSignatureSpan">sworm.unescape.</span>isUnescape
+        <span class="apidocSignatureSpan">(value)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">isUnescape = function (value) {
+  return value instanceof Unescape
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">...
+var unescape = require(&#x27;./unescape&#x27;)
+
+var rowBase = function() {
+function fieldsForObject(obj) {
+  return Object.keys(obj).filter(function (key) {
+    var value = obj[key];
+    return value instanceof Date
+      || unescape.<span class="apidocCodeKeywordSpan">isUnescape</span>(value)
+      || value instanceof Buffer
+      || !(
+        value === null
+        || value === undefined
+        || value instanceof Object
+      );
+  });
+...</pre></li>
+    </ul>
+
+
+</div>
+
+<div class="apidocFooterDiv">
+    [ this document was created with
+    <a href="https://github.com/kaizhu256/node-utility2" target="_blank">utility2</a>
+    ]
+</div>
+</div>
